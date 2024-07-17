@@ -1,9 +1,10 @@
 import authConfig from "@/auth.config";
+import { getTwoFactorConfirmationByUserId } from "@/data/two-factor-confirmation";
+import { getUserById } from "@/data/user";
 import { db } from "@/lib/db";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { UserRole } from "@prisma/client";
 import NextAuth, { DefaultSession } from "next-auth";
-import { getUserById } from "./data/user";
 
 // TYPES FIX
 export type ExtendedUSer = DefaultSession["user"] & {
@@ -40,7 +41,20 @@ export const {
       const existingUser = await getUserById(user?.id);
       // Prevent sign in without email verification
       if (!existingUser || !existingUser.emailVerified) return false;
-      // TODO: Add 2FA check
+
+      if (existingUser.isTwoFactorEnabled) {
+        const twoFactorConfirmation = await getTwoFactorConfirmationByUserId(
+          existingUser.id
+        );
+        console.log({ twoFactorConfirmation });
+        if (!twoFactorConfirmation) return false;
+        //  Delete two factor confirmation for next sign in
+        await db.twoFactorConfirmation.delete({
+          where: {
+            id: twoFactorConfirmation.id,
+          },
+        });
+      }
       return true;
     },
     async jwt({ token }) {
@@ -52,7 +66,6 @@ export const {
       return token;
     },
     async session({ token, session }) {
-      console.log({ tokenSession: token });
       if (token.sub && session.user) {
         session.user.id = token.sub;
       }
