@@ -7,12 +7,13 @@ import { UserRole } from "@prisma/client";
 import NextAuth, { DefaultSession } from "next-auth";
 
 // TYPES FIX
-export type ExtendedUSer = DefaultSession["user"] & {
+export type ExtendedUser = DefaultSession["user"] & {
   role: UserRole;
+  isTwoFactorEnabled: boolean;
 };
 declare module "next-auth" {
   interface Session {
-    user: ExtendedUSer;
+    user: ExtendedUser;
   }
 }
 
@@ -62,12 +63,17 @@ export const {
       const existingUser = await getUserById(token.sub);
       if (!existingUser) return token;
       token.role = existingUser.role;
+      token.isTwoFactorEnabled = existingUser.isTwoFactorEnabled;
 
       return token;
     },
     async session({ token, session }) {
       if (token.sub && session.user) {
         session.user.id = token.sub;
+      }
+
+      if (token.isTwoFactorEnabaled && session.user) {
+        session.user.isTwoFactorEnabled = token.isTwoFactorEnabled as boolean;
       }
 
       if (token.role && session.user) {
